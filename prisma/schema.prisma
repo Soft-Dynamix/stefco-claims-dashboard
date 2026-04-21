@@ -580,6 +580,194 @@ model ClaimNumberFormat {
 }
 
 // =============================================================================
+// ENHANCED LEARNING MODELS (v2.0)
+// =============================================================================
+
+/// Global patterns that work across all companies (learned from common structures)
+model GlobalPattern {
+  id                  String   @id @default(cuid())
+  
+  // What field this pattern extracts
+  fieldType           String   // claimNumber, policyNumber, clientName, etc.
+  
+  // Pattern definition
+  patternValue        String   // Regex pattern
+  description         String?  // Human-readable description
+  
+  // How well this works across companies
+  companyCount        Int      @default(0)  // How many companies use this
+  successRate         Float    @default(0)  // Overall success rate
+  
+  // Confidence
+  confidence          Int      @default(60)  // 50-100
+  isActive            Boolean  @default(true)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([fieldType, patternValue])
+  @@map("global_patterns")
+}
+
+/// Email templates detected from similar emails
+model EmailTemplate {
+  id                  String   @id @default(cuid())
+  insuranceCompanyId  String?
+  
+  // Template identification
+  templateHash        String   @unique  // Hash of structure/signature
+  
+  // Template content patterns
+  subjectPattern      String?  // Regex for subject
+  signaturePattern    String?  // Email signature pattern
+  structureFingerprint String? // JSON structure fingerprint
+  
+  // What this template contains
+  expectedFields      String?  // JSON array of fields this template usually contains
+  
+  // Usage statistics
+  matchCount          Int      @default(0)
+  claimCount          Int      @default(0)
+  
+  // Confidence
+  confidence          Int      @default(70)
+  isActive            Boolean  @default(true)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([insuranceCompanyId])
+  @@map("email_templates")
+}
+
+/// Field relationships - when one field predicts another
+model FieldRelationship {
+  id                  String   @id @default(cuid())
+  insuranceCompanyId  String?
+  
+  // Relationship definition
+  primaryField        String   // e.g., "claimType"
+  primaryValue        String?  // e.g., "MOTOR"
+  dependentField      String   // e.g., "vehicleRegistration"
+  
+  // Probability
+  occurrenceCount     Int      @default(0)
+  probability         Float    @default(0)  // P(dependent|primary)
+  
+  // Expected values
+  expectedPattern     String?  // Pattern for dependent field when primary matches
+  
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([insuranceCompanyId, primaryField, primaryValue, dependentField])
+  @@map("field_relationships")
+}
+
+/// Negative patterns - what NOT to extract (false positives learned)
+model NegativePattern {
+  id                  String   @id @default(cuid())
+  insuranceCompanyId  String?
+  
+  // What was incorrectly extracted
+  fieldType           String
+  incorrectValue      String   // Value that was wrong
+  
+  // Context where it appeared
+  contextPattern      String?  // Where it appeared (to avoid same mistake)
+  
+  // Why it was wrong
+  rejectionReason     String?  // User's reason for rejecting
+  
+  // Statistics
+  occurrenceCount     Int      @default(1)
+  
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  @@index([insuranceCompanyId, fieldType])
+  @@map("negative_patterns")
+}
+
+/// Confidence weights for ensemble extraction
+model ConfidenceWeight {
+  id                  String   @id @default(cuid())
+  insuranceCompanyId  String?
+  
+  // What this weight applies to
+  fieldType           String
+  extractionMethod    String   // "regex", "ai", "template", "position"
+  
+  // Weight (0-1, how much to trust this method)
+  weight              Float    @default(0.5)
+  
+  // Statistics
+  successCount        Int      @default(0)
+  failureCount        Int      @default(0)
+  
+  // Last updated
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([insuranceCompanyId, fieldType, extractionMethod])
+  @@map("confidence_weights")
+}
+
+/// Extraction sessions for multi-field consistency checking
+model ExtractionSession {
+  id                  String   @id @default(cuid())
+  emailQueueId        String
+  
+  // All fields extracted together
+  extractedFields     String   // JSON of all extracted values
+  
+  // Confidence scores
+  overallConfidence   Float    @default(0)
+  fieldConfidences    String?  // JSON of per-field confidence
+  
+  // Was this accepted or corrected?
+  wasAccepted         Boolean  @default(false)
+  correctionCount     Int      @default(0)
+  
+  // Processing time
+  processingTimeMs    Int?
+  
+  createdAt           DateTime @default(now())
+
+  @@index([emailQueueId])
+  @@map("extraction_sessions")
+}
+
+/// Quick learning triggers - patterns that should be learned immediately
+model QuickLearningRule {
+  id                  String   @id @default(cuid())
+  
+  // Trigger condition
+  triggerField        String   // Field that triggers this rule
+  triggerPattern      String   // Pattern in the trigger field
+  
+  // What to learn
+  learnField          String   // Field to learn pattern for
+  learnPattern        String   // Pattern to apply
+  
+  // Priority
+  priority            Int      @default(0)
+  
+  // Statistics
+  triggerCount        Int      @default(0)
+  successCount        Int      @default(0)
+  
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  @@map("quick_learning_rules")
+}
+
+// =============================================================================
 // SYSTEM MODELS
 // =============================================================================
 
