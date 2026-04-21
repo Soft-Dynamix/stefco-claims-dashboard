@@ -274,6 +274,47 @@ Key Files Updated:
 - src/components/sections/learning-section.tsx - Fixed optional chaining
 
 ---
+Task ID: 7
+Agent: Main Agent
+Task: Integrate learning with claim creation workflow
+
+Work Log:
+- Updated claims API (POST) to learn from user input when creating claims:
+  - Auto-learns extraction patterns for each field (claimNumber, clientName, etc.)
+  - Auto-learns claim number format patterns per insurance company
+  - Updates sender pattern accuracy when claims are created
+  - Auto-links sender domain to insurance company
+- Created claim-feedback API endpoint:
+  - POST: Submit field corrections with learning
+  - GET: Fetch feedback history for a claim
+  - Updates claim field with corrected value
+  - Learns extraction pattern from correction
+  - Learns claim number format if claim number corrected
+  - Updates sender pattern accuracy
+- Implemented claim number format learning:
+  - Parses claim numbers to extract format (prefix, separator, year position)
+  - Creates ClaimNumberFormat records per insurance company
+  - Increases confidence with each matching claim number
+  - Supports SA formats: STM-YYYY-NNNNN, OUT/NNNNNN/YY, HOL-NNNNNNNN, CLMNNNNNN
+- Implemented domain-to-company linking:
+  - Auto-approves pending domain suggestions when claim is created
+  - Adds domain to company's senderDomains list
+  - Creates sender pattern if not exists
+
+Stage Summary:
+- Complete learning loop: Email → Claim Creation → Pattern Learning → Future Extraction
+- Insurance company auto-detected from email domain
+- Claim number formats learned per company
+- Extraction patterns improve with each claim
+- Domain-to-company linking happens automatically
+
+Key Files Created:
+- src/app/api/claim-feedback/route.ts - Feedback API with learning
+
+Key Files Updated:
+- src/app/api/claims/route.ts - Added learning integration on claim creation
+
+---
 ## Current Project Status
 
 **Status:** ✅ Fully Functional - Ready for Production
@@ -303,11 +344,23 @@ Key Files Updated:
 22. ✅ ClaimNumberFormat model with SA insurance formats
 23. ✅ Pattern learning from user corrections
 24. ✅ Pattern testing UI in Insurance section
+25. ✅ Learning integrated with claim creation workflow
+26. ✅ Auto-learn claim number formats per company
+27. ✅ Auto-link sender domains to companies
+
+**How Learning Works (Complete Flow):**
+1. **Email Arrives** → Domain detected → Company matched or suggested
+2. **AI Extracts Data** → Uses learned patterns for that company
+3. **User Reviews** → Confirms or corrects fields
+4. **Claim Created** → Patterns learned for each field
+5. **Claim Number Parsed** → Format pattern stored for company
+6. **Domain Linked** → Sender domain mapped to company
+7. **Next Email** → Better extraction using learned patterns
 
 **Pending for Production:**
 - Configure valid IMAP credentials
 - Start email poller background service
 - Configure AI provider API key
-- Restart dev server to pick up new Prisma models (domainSuggestion, insuranceDomainKnowledge)
+- Restart dev server to pick up new Prisma models
 
 ---
