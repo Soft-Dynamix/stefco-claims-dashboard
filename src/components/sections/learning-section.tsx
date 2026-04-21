@@ -272,7 +272,7 @@ export function LearningSection() {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.stats.totalPatterns || 0}</div>
+            <div className="text-2xl font-bold">{stats?.stats?.totalPatterns || 0}</div>
             <p className="text-xs text-muted-foreground">Extraction rules learned</p>
           </CardContent>
         </Card>
@@ -283,7 +283,7 @@ export function LearningSection() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.stats.totalSenderProfiles || 0}</div>
+            <div className="text-2xl font-bold">{stats?.stats?.totalSenderProfiles || 0}</div>
             <p className="text-xs text-muted-foreground">Known senders tracked</p>
           </CardContent>
         </Card>
@@ -295,9 +295,9 @@ export function LearningSection() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(stats?.stats.avgConfidence || 0).toFixed(0)}%
+              {(stats?.stats?.avgConfidence || 0).toFixed(0)}%
             </div>
-            <Progress value={stats?.stats.avgConfidence || 0} className="mt-2" />
+            <Progress value={stats?.stats?.avgConfidence || 0} className="mt-2" />
           </CardContent>
         </Card>
 
@@ -307,7 +307,7 @@ export function LearningSection() {
             <Ban className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.stats.totalIgnoreRules || 0}</div>
+            <div className="text-2xl font-bold">{stats?.stats?.totalIgnoreRules || 0}</div>
             <p className="text-xs text-muted-foreground">Auto-ignore rules</p>
           </CardContent>
         </Card>
