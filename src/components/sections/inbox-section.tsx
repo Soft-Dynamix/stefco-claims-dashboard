@@ -11,7 +11,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -38,6 +37,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Mail,
   Search,
@@ -46,8 +46,12 @@ import {
   XCircle,
   Clock,
   Brain,
-  FileText,
   RefreshCw,
+  Play,
+  Square,
+  Download,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -69,6 +73,15 @@ interface Email {
   processedAt: string | null;
 }
 
+interface PollingStatus {
+  isConfigured: boolean;
+  lastPoll: string | null;
+  nextPoll: string | null;
+  totalQueued: number;
+  schedulerEnabled: boolean;
+  pollInterval: number;
+}
+
 export function InboxSection() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,10 +89,16 @@ export function InboxSection() {
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pollingStatus, setPollingStatus] = useState<PollingStatus | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchEmails();
+    fetchPollingStatus();
+    // Refresh status every 30 seconds
+    const interval = setInterval(fetchPollingStatus, 30000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   const fetchEmails = async () => {
@@ -92,6 +111,86 @@ export function InboxSection() {
       console.error("Failed to fetch emails:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPollingStatus = async () => {
+    try {
+      const res = await fetch("/api/email-poll");
+      const json = await res.json();
+      setPollingStatus(json);
+    } catch (error) {
+      console.error("Failed to fetch polling status:", error);
+    }
+  };
+
+  const pollEmailsNow = async () => {
+    setIsPolling(true);
+    toast({
+      title: "Polling Emails",
+      description: "Connecting to IMAP server...",
+    });
+
+    try {
+      const res = await fetch("/api/email-poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 50 }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        toast({
+          title: "Success",
+          description: json.message || `Fetched ${json.fetched} new emails`,
+        });
+        fetchEmails();
+        fetchPollingStatus();
+      } else {
+        toast({
+          title: "Polling Failed",
+          description: json.errors?.[0] || "Failed to fetch emails",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to poll emails",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPolling(false);
+    }
+  };
+
+  const toggleScheduler = async (enable: boolean) => {
+    try {
+      const res = await fetch("/api/email-poll/scheduler", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: enable ? "start" : "stop",
+          interval: pollingStatus?.pollInterval || 5,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        toast({
+          title: enable ? "Scheduler Started" : "Scheduler Stopped",
+          description: json.message,
+        });
+        fetchPollingStatus();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update scheduler",
+        variant: "destructive",
+      });
     }
   };
 
@@ -129,7 +228,7 @@ export function InboxSection() {
 
   const createClaimFromEmail = async (email: Email) => {
     // Parse extracted data
-    let extractedData: any = {};
+    let extractedData: Record<string, unknown> = {};
     try {
       extractedData = email.aiExtractedData ? JSON.parse(email.aiExtractedData) : {};
     } catch {
@@ -142,7 +241,7 @@ export function InboxSection() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          claimNumber: extractedData.claimNumber || `PENDING-${Date.now()}`,
+          claimNumber: (extractedData.claimNumber as string) || `PENDING-${Date.now()}`,
           clientName: extractedData.clientName,
           clientEmail: extractedData.clientEmail,
           clientPhone: extractedData.clientPhone,
@@ -227,11 +326,117 @@ export function InboxSection() {
             Review and process incoming claim emails
           </p>
         </div>
-        <Button onClick={fetchEmails} variant="outline">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={fetchEmails} variant="outline">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
+
+      {/* Polling Status Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Polling
+              </CardTitle>
+              <CardDescription>
+                IMAP email fetching and scheduling
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-4">
+              {pollingStatus?.isConfigured ? (
+                <Badge className="bg-green-500 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Queued Emails</p>
+              <p className="text-2xl font-bold">{pollingStatus?.totalQueued || 0}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Last Poll</p>
+              <p className="text-sm font-medium">
+                {pollingStatus?.lastPoll
+                  ? new Date(pollingStatus.lastPoll).toLocaleString()
+                  : "Never"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Poll Interval</p>
+              <p className="text-sm font-medium">
+                Every {pollingStatus?.pollInterval || 5} minutes
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Auto-Poller</p>
+              <p className="text-sm font-medium flex items-center gap-2">
+                {pollingStatus?.schedulerEnabled ? (
+                  <><Play className="h-3 w-3 text-green-500" /> Running</>
+                ) : (
+                  <><Square className="h-3 w-3 text-gray-500" /> Stopped</>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={pollEmailsNow}
+                disabled={isPolling || !pollingStatus?.isConfigured}
+                className="min-w-[150px]"
+              >
+                {isPolling ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Polling...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Poll Emails Now
+                  </>
+                )}
+              </Button>
+
+              {!pollingStatus?.isConfigured && (
+                <p className="text-sm text-muted-foreground">
+                  Configure IMAP settings to enable polling
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Label htmlFor="scheduler" className="text-sm">
+                Auto-Poll
+              </Label>
+              <Switch
+                id="scheduler"
+                checked={pollingStatus?.schedulerEnabled || false}
+                onCheckedChange={toggleScheduler}
+                disabled={!pollingStatus?.isConfigured}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <div className="flex gap-4">
@@ -288,7 +493,7 @@ export function InboxSection() {
               ) : filteredEmails.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No emails found
+                    No emails found. Click "Poll Emails Now" to fetch new emails.
                   </TableCell>
                 </TableRow>
               ) : (
